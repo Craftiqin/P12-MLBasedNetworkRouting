@@ -6,17 +6,13 @@ Install Python 3.11 (for example from python.org or a managed package manager), 
 
 ## OMNeT++ and INET
 
-Current OMNeT++ docs provide distinct macOS archives: Apple Silicon uses `aarch64`; Intel uses `x86_64`. OMNeT++ requires Apple's command line developer tools; Qt enables Qtenv. Use upstream current install steps for the selected release. `opp_env` supports macOS through Nix; Apple Silicon requires OMNeT++ 6.x. Version selection: [simulation setup](SIMULATION_SETUP.md).
+Current OMNeT++ docs provide distinct macOS archives: Apple Silicon uses `aarch64`; Intel uses `x86_64`. OMNeT++ requires Apple's command line developer tools; Qt enables Qtenv. Follow the [official macOS install guide](https://docs.omnetpp.org/installguide/ch-macos/). This project was locally built on M1/macOS 27 with OMNeT++ 6.5.0 and INET 4.7.0. Version caveat: [simulation setup](SIMULATION_SETUP.md).
 
 ```sh
 xcode-select --install
-python3 -m pip install --user opp-env
-# Follow Nix upstream installation; open a new Terminal after setup.
-mkdir -p "$HOME/opp-workspace/p12"
-cd "$HOME/opp-workspace/p12"
-opp_env init
-opp_env install inet-4.7.0
-opp_env shell inet-4.7.0
+# Download and extract the OMNeT++ macOS aarch64 archive using the official guide.
+# Open a new terminal, then source the extracted distribution's setenv script.
+source "$HOME/omnetpp-6.5.0/setenv" -q
 ```
 
-Do not treat this as tested here. Validate `opp_run -h`, `inet -h`, `OMNETPP_ROOT`, `INET_ROOT`; compile/run steps in [simulation README](../../simulation/README.md). Keep Nix installation outside the project. Intel and Apple Silicon binary archives are architecture-specific; do not share compiled artifacts across architectures.
+Build INET 4.7.0 using its [official installation guide](https://inet.omnetpp.org/Installation.html), with the OMNeT++ environment active. Then follow [ML routing setup](../../simulation/inet/ml-routing/README.md). The previous Nix/QtWebEngine route failed on this Apple Silicon host and is not the tested installation path. Intel and Apple Silicon artifacts are architecture-specific; never share compiled outputs across architectures.

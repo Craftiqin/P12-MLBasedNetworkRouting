@@ -1,0 +1,4 @@
+<scenario>
+    <crash t="30s" module="node[2]"/>
+    <startup t="45s" module="node[2]"/>
+</scenario>

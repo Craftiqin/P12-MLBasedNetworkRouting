@@ -1,5 +1,7 @@
 # Python ML and graph-simulation setup
 
+For the packet-level OMNeT++ Decision Tree forwarder, use the dedicated pinned dependencies and commands in [ML routing setup](../../simulation/inet/ml-routing/README.md). Root project dependencies below cover the Python graph simulator/dashboard, not the C++/INET build.
+
 ## Requirements
 
 Python **3.11** recommended and pinned dependencies in root `requirements.txt`: NetworkX, NumPy, pandas, scikit-learn, joblib (transitive), Streamlit, Plotly; pytest for checks. Current lock pins reflect the validated authoring environment. The application imports from the repository root; run commands there.

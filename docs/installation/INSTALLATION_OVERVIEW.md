@@ -1,15 +1,15 @@
 # Installation overview
 
-Install Python and OMNeT++/INET separately. Python ML and graph simulations do not depend on OMNeT++. INET packet simulation does not use the Python model. Use Python 3.11 and the exact Python pins in `requirements.txt`.
+Install project Python dependencies separately from OMNeT++/INET. Python graph simulation does not depend on OMNeT++; packet-level ML routing uses Python for training, analysis, and experiment orchestration plus C++ inference inside INET. Use Python 3.11 and exact pins in the component requirements files.
 
 ## Platform paths
 
-- macOS: [platform guide](MACOS.md); Apple Silicon and Intel supported by OMNeT++ through different upstream archives. `opp_env` requires Nix; Apple Silicon needs OMNeT++ 6.x.
+- macOS: [platform guide](MACOS.md); Apple Silicon and Intel use different upstream archives. This project uses the native OMNeT++/INET workflow.
 - Windows: [platform guide](WINDOWS.md); use Windows 11 + WSL2 (recommended upstream route) or OMNeT++ MinGW toolchain only if manually verified. INET guide notes Windows commands need OMNeT++'s MinGW environment.
 - Linux: [platform guide](LINUX.md); use a supported 64-bit distro, compiler/build packages, Qt for Qtenv.
 
-These are documented procedures, not test claims. See current [OMNeT++ install guide](https://docs.omnetpp.org/installguide/) and [opp_env install guide](https://github.com/omnetpp/opp_env/blob/main/INSTALL.md) before installing because platform support changes.
+Installation procedures are platform-specific. Only macOS Apple Silicon was built and exercised for this ML packet simulation. Windows and Linux are documented routes, not test claims. See current [OMNeT++ install guide](https://docs.omnetpp.org/installguide/) before installing because platform support changes.
 
 ## Reproducible version choice
 
-INET source was authored against the OMNeT++/INET compatibility pair recorded in [simulation setup](SIMULATION_SETUP.md). Prefer `opp_env` so it resolves and builds compatible dependencies together. Do not install INET's `full` feature set for this project. Build artifacts and results stay outside committed source.
+The ML packet simulation uses OMNeT++ 6.5.0 with INET 4.7.0, locally verified on macOS Apple Silicon. INET's published matrix lists OMNeT++ 6.4 with INET 4.7.0. See [simulation setup](SIMULATION_SETUP.md) for this distinction and platform status. Build artifacts and raw run outputs should stay outside committed source unless deliberately archived.

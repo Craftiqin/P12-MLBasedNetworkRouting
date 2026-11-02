@@ -2,7 +2,7 @@
 
 ## Overview
 
-This project studies routing choices for a low-power IoT mesh using two distinct software artifacts: a reproducible Python graph simulator with a synthetic-data Decision Tree policy, and an OMNeT++/INET packet-level AODV baseline. The ML policy is not integrated into INET. No physical ESP32 routing firmware or measured radio results are present.
+This project studies routing choices for a low-power IoT mesh using a reproducible Python graph simulator and an OMNeT++/INET packet-level simulation. The INET implementation now contains a separate Decision Tree forwarder alongside the preserved AODV baseline. No physical ESP32 routing firmware or measured radio results are present.
 
 ## Problem and objectives
 
@@ -12,7 +12,7 @@ Low-power mesh links vary in quality; shortest-hop routing can select unreliable
 
 - **Python simulation:** seeded graph, sequential packet forwarding, modeled per-link loss/latency, baseline minimum-hop and ML candidate scoring. See [architecture](docs/architecture/system_architecture.md).
 - **ML:** Decision Tree estimates single-link ACK success from synthetic RSSI, latency, loss, throughput, and remaining-hop features. See [ML architecture](docs/architecture/ml_architecture.md).
-- **Packet simulation:** six fixed INET `AodvRouter` nodes with UDP source/sink and scenario variants. This is AODV only. See [simulation architecture](docs/architecture/simulation_architecture.md).
+- **Packet simulation:** preserved six-router AODV baseline plus a custom Decision Tree forwarder whose predictions choose real next hops. See [AODV baseline](simulation/README.md) and [ML routing implementation](simulation/inet/ml-routing/README.md).
 - **Physical concept:** four ESP32 nodes, two relay corridors, sensors at source. Diagram: [final hardware architecture](diagrams/final_hardware_architecture.svg). It is a design proposal; assembly, firmware, and radio tests are unverified.
 
 ## Implemented features and evidence status
@@ -20,17 +20,17 @@ Low-power mesh links vary in quality; shortest-hop routing can select unreliable
 | Area | State | Evidence boundary |
 |---|---|---|
 | Python simulator and dashboard | Implemented locally | Seeded abstract graph model; not calibrated radio simulation |
-| Python baseline and ML candidate selection | Implemented locally | Synthetic training labels; no INET integration |
+| Python baseline and ML candidate selection | Implemented locally | Synthetic training labels; Python model is separate from INET tree |
 | Generated training data and model | Included | Synthetic, reproducible; do not treat as measured observations |
-| INET topology/configs | Source prepared | AODV baseline only; OMNeT++/INET build and runs unverified on authoring host |
-| Custom INET ML forwarder | Not implemented | No ML-controlled packet forwarding claim |
+| INET AODV baseline | Preserved and rerun | Paired comparison and metrics limitations documented in ML routing results |
+| Custom INET ML forwarder | Implemented and locally validated | macOS 27 / Apple Silicon M1 only; Qtenv visual inspection and relay restart recovery remain incomplete |
 | ESP32 prototype | Planned | No firmware or physical test results |
 
-The checked-in Python aggregate CSV is a small illustrative snapshot from synthetic experiments. Re-run commands before analysis. Failure recall was **0.0** in the included model metadata; aggregate accuracy alone is not evidence of useful failure detection.
+The checked-in Python link-model snapshot reports failure recall **0.0**; a fresh run recorded **0.0377**. The separate INET route-selection tree is also synthetic. Its five-seed AODV comparison is scenario-specific; it does not establish general ML superiority. See [curated INET results](simulation/inet/ml-routing/results/repeated-5-seed/README.md) and [evidence limits](reports/final_submission/report_validation_summary.md).
 
 ## Install
 
-Python ML/dashboard setup is independent of OMNeT++: [ML setup](docs/installation/ML_SETUP.md). Packet simulation setup: [overview](docs/installation/INSTALLATION_OVERVIEW.md), [macOS](docs/installation/MACOS.md), [Windows](docs/installation/WINDOWS.md), [Linux](docs/installation/LINUX.md), and [simulation setup](docs/installation/SIMULATION_SETUP.md). Platform instructions document; only the current host's Python path can be exercised here.
+Python ML/dashboard setup is independent of OMNeT++: [ML setup](docs/installation/ML_SETUP.md). Packet simulation setup: [overview](docs/installation/INSTALLATION_OVERVIEW.md), [macOS](docs/installation/MACOS.md), [Windows](docs/installation/WINDOWS.md), [Linux](docs/installation/LINUX.md), and [simulation setup](docs/installation/SIMULATION_SETUP.md). Native OMNeT++/INET build and experiment runs were validated on this macOS Apple Silicon host. Windows and Linux instructions are untested.
 
 ## Quick start: Python experiments
 

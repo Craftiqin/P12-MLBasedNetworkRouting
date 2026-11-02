@@ -1,0 +1,215 @@
+{
+  "metadata": {
+    "model_version": "decision-tree-v1-seed-20261101",
+    "model": "sklearn.tree.DecisionTreeClassifier",
+    "sklearn_version": "1.9.1",
+    "features": [
+      "upper_available",
+      "upper_pdr_estimate",
+      "upper_latency_ms",
+      "upper_hops",
+      "lower_available",
+      "lower_pdr_estimate",
+      "lower_latency_ms",
+      "lower_hops"
+    ],
+    "target": "label_route",
+    "objective": "minimize expected completion cost = pdr*delay_ms + (1-pdr)*1000ms; unavailable routes excluded; ties prefer fewer hops then upper path",
+    "data_origin": "synthetic controlled route scenarios; not OMNeT packet measurements or hardware measurements",
+    "seed": 20261101,
+    "split": "scenario run ids 0-79 train, 80-99 held out; no run id appears in both partitions",
+    "training_rows": 480,
+    "test_rows": 120,
+    "train_label_counts": {
+      "0": 99,
+      "1": 361,
+      "-1": 20
+    },
+    "test_label_counts": {
+      "0": 27,
+      "1": 88,
+      "-1": 5
+    },
+    "accuracy": 0.9666666666666667,
+    "macro_f1": 0.9677328843995511,
+    "confusion_matrix_labels": [
+      -1,
+      0,
+      1
+    ],
+    "confusion_matrix": [
+      [
+        5,
+        0,
+        0
+      ],
+      [
+        0,
+        25,
+        2
+      ],
+      [
+        0,
+        2,
+        86
+      ]
+    ],
+    "classification_report": {
+      "-1": {
+        "precision": 1.0,
+        "recall": 1.0,
+        "f1-score": 1.0,
+        "support": 5.0
+      },
+      "0": {
+        "precision": 0.9259259259259259,
+        "recall": 0.9259259259259259,
+        "f1-score": 0.9259259259259259,
+        "support": 27.0
+      },
+      "1": {
+        "precision": 0.9772727272727273,
+        "recall": 0.9772727272727273,
+        "f1-score": 0.9772727272727273,
+        "support": 88.0
+      },
+      "accuracy": 0.9666666666666667,
+      "macro avg": {
+        "precision": 0.9677328843995511,
+        "recall": 0.9677328843995511,
+        "f1-score": 0.9677328843995511,
+        "support": 120.0
+      },
+      "weighted avg": {
+        "precision": 0.9666666666666667,
+        "recall": 0.9666666666666667,
+        "f1-score": 0.9666666666666667,
+        "support": 120.0
+      }
+    },
+    "max_depth": 4,
+    "leaf_count": 11
+  },
+  "classes": [
+    -1,
+    0,
+    1
+  ],
+  "tree": {
+    "feature": [
+      1,
+      4,
+      -2,
+      5,
+      5,
+      -2,
+      -2,
+      -2,
+      2,
+      5,
+      5,
+      -2,
+      -2,
+      1,
+      -2,
+      -2,
+      5,
+      1,
+      -2,
+      -2,
+      -2
+    ],
+    "threshold": [
+      0.9074673354625702,
+      0.5,
+      -2.0,
+      0.8659312427043915,
+      0.8591153025627136,
+      -2.0,
+      -2.0,
+      -2.0,
+      119.21091079711914,
+      0.9950445294380188,
+      0.962451845407486,
+      -2.0,
+      -2.0,
+      0.9847556352615356,
+      -2.0,
+      -2.0,
+      0.9191602170467377,
+      0.9807030856609344,
+      -2.0,
+      -2.0,
+      -2.0
+    ],
+    "children_left": [
+      1,
+      2,
+      -1,
+      4,
+      5,
+      -1,
+      -1,
+      -1,
+      9,
+      10,
+      11,
+      -1,
+      -1,
+      14,
+      -1,
+      -1,
+      17,
+      18,
+      -1,
+      -1,
+      -1
+    ],
+    "children_right": [
+      8,
+      3,
+      -1,
+      7,
+      6,
+      -1,
+      -1,
+      -1,
+      16,
+      13,
+      12,
+      -1,
+      -1,
+      15,
+      -1,
+      -1,
+      20,
+      19,
+      -1,
+      -1,
+      -1
+    ],
+    "leaf_label": [
+      1,
+      1,
+      -1,
+      1,
+      1,
+      1,
+      1,
+      1,
+      0,
+      0,
+      0,
+      0,
+      0,
+      1,
+      1,
+      0,
+      1,
+      0,
+      1,
+      0,
+      1
+    ]
+  }
+}

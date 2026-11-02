@@ -1,9 +1,9 @@
 # Simulation troubleshooting
 
-- `inet`/`opp_run` not found: enter installed `opp_env shell inet-4.7.0`; these tools are not globally available from that environment.
+- `inet`/`opp_run` not found: source OMNeT++ and INET `setenv` scripts; check `OMNETPP_ROOT`, `INET_ROOT`, and `PATH`. See [native install setup](../installation/SIMULATION_SETUP.md).
 - NED type not found: run from `simulation/inet`; pass `-n "src:$INET_ROOT/src"` and verify `INET_ROOT`.
-- INET shared library missing: install/build INET through `opp_env`; do not add an unbuilt local path.
+- INET shared library missing: build INET using its official procedure, then rerun the ML package's `tools/configure_build.py`.
 - output path error: create `simulation/inet/results` first; inspect write permission.
 - Qtenv fails: confirm Qt/GUI support and graphical session; use Cmdenv on headless systems.
 - no route after failure: inspect `.rt` and packet vectors; AODV convergence is event/seed dependent.
-- do not use custom-router diagnostics as validated results. No custom INET router exists in this repository.
+- ML packet-level forwarding is implemented in `simulation/inet/ml-routing`; do not infer that other scenarios or platforms passed from its local validation.

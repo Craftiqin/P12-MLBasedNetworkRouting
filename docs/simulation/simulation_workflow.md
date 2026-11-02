@@ -15,7 +15,7 @@ These create synthetic dataset/model and paired outputs. For quick check use `--
 
 ## INET packet-level AODV
 
-Install compatible OMNeT++/INET first; commands are in [`simulation/README.md`](../../simulation/README.md). Configs are AODV, not ML. `Normal` is baseline. Keep raw `.sca`, `.vec`, `.rt` artifacts for evidence; exporter CSV is derived. INET is unavailable on current host, therefore compile, packet forwarding, Qtenv and scenario results are unverified.
+The preserved AODV workflow is in [simulation README](../../simulation/README.md); ML packet forwarding is in [ML routing README](../../simulation/inet/ml-routing/README.md). The ML project was locally built/run on macOS with OMNeT++ 6.5.0 + INET 4.7.0. Its four live integration tests skip in shells where inet/INET_ROOT are absent. Qtenv visual inspection and Windows/Linux builds remain unverified. Curated five-seed results and limitations are checked in; raw run directories are local.
 
 ## Regression checks
 

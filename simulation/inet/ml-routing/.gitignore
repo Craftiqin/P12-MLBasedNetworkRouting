@@ -1,0 +1,12 @@
+# Local native build products and environment
+/.ml-venv/
+/Makefile
+/out/
+/libmesh.*
+__pycache__/
+*.py[cod]
+
+# Fresh simulator output is machine-specific and can be large.
+/experiments/runs/
+/experiments/comparisons/
+/ml/local-training/

@@ -1,0 +1,91 @@
+{
+  "model_version": "decision-tree-v1-seed-20261101",
+  "model": "sklearn.tree.DecisionTreeClassifier",
+  "sklearn_version": "1.9.1",
+  "features": [
+    "upper_available",
+    "upper_pdr_estimate",
+    "upper_latency_ms",
+    "upper_hops",
+    "lower_available",
+    "lower_pdr_estimate",
+    "lower_latency_ms",
+    "lower_hops"
+  ],
+  "target": "label_route",
+  "objective": "minimize expected completion cost = pdr*delay_ms + (1-pdr)*1000ms; unavailable routes excluded; ties prefer fewer hops then upper path",
+  "data_origin": "synthetic controlled route scenarios; not OMNeT packet measurements or hardware measurements",
+  "seed": 20261101,
+  "split": "scenario run ids 0-79 train, 80-99 held out; no run id appears in both partitions",
+  "training_rows": 480,
+  "test_rows": 120,
+  "train_label_counts": {
+    "0": 99,
+    "1": 361,
+    "-1": 20
+  },
+  "test_label_counts": {
+    "0": 27,
+    "1": 88,
+    "-1": 5
+  },
+  "accuracy": 0.9666666666666667,
+  "macro_f1": 0.9677328843995511,
+  "confusion_matrix_labels": [
+    -1,
+    0,
+    1
+  ],
+  "confusion_matrix": [
+    [
+      5,
+      0,
+      0
+    ],
+    [
+      0,
+      25,
+      2
+    ],
+    [
+      0,
+      2,
+      86
+    ]
+  ],
+  "classification_report": {
+    "-1": {
+      "precision": 1.0,
+      "recall": 1.0,
+      "f1-score": 1.0,
+      "support": 5.0
+    },
+    "0": {
+      "precision": 0.9259259259259259,
+      "recall": 0.9259259259259259,
+      "f1-score": 0.9259259259259259,
+      "support": 27.0
+    },
+    "1": {
+      "precision": 0.9772727272727273,
+      "recall": 0.9772727272727273,
+      "f1-score": 0.9772727272727273,
+      "support": 88.0
+    },
+    "accuracy": 0.9666666666666667,
+    "macro avg": {
+      "precision": 0.9677328843995511,
+      "recall": 0.9677328843995511,
+      "f1-score": 0.9677328843995511,
+      "support": 120.0
+    },
+    "weighted avg": {
+      "precision": 0.9666666666666667,
+      "recall": 0.9666666666666667,
+      "f1-score": 0.9666666666666667,
+      "support": 120.0
+    }
+  },
+  "max_depth": 4,
+  "leaf_count": 11
+}

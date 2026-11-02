@@ -1,0 +1,3 @@
+<scenario>
+    <crash t="30s" module="node[2]"/>
+</scenario>

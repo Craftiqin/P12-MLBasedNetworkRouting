@@ -10,7 +10,7 @@ From elevated PowerShell, if WSL is not installed:
 wsl --install
 ```
 
-Then use WSL distro terminal and follow [Linux guide](LINUX.md) and [simulation setup](SIMULATION_SETUP.md). Current official OMNeT++ guide also documents a native Windows 11 MinGW64 toolchain; INET says to open the `mingwenv.cmd` shell before building/running. Native Windows route is not tested here and no PowerShell run wrapper is supplied.
+Then use WSL distro terminal and follow [Linux guide](LINUX.md) and [simulation setup](SIMULATION_SETUP.md). Current official OMNeT++ guide also documents a native Windows 11 MinGW64 toolchain; INET says to open the `mingwenv.cmd` shell before building/running. Native Windows and WSL project builds are untested; no PowerShell experiment wrapper is supplied. ML routing package commands are in [ML routing README](../../simulation/inet/ml-routing/README.md).
 
 ## Python on Windows
 
@@ -25,3 +25,7 @@ python tools\validation\validate_environment.py --python-only
 ```
 
 Command Prompt users: use `.venv\Scripts\activate.bat` and backslash paths. ML/Python works independently of OMNeT++.
+
+## ML packet simulation
+
+Unverified on Windows. For WSL2, use the Linux setup, then follow the [ML routing package guide](../../simulation/inet/ml-routing/README.md) from the WSL project checkout. Native MinGW users must enter OMNeT++'s `mingwenv.cmd` shell before building; install the package's Python dependencies from `simulation/inet/ml-routing/ml/requirements.txt`, then follow its build and experiment steps. Command names, GUI launch, and experiment behavior have not been validated on Windows.

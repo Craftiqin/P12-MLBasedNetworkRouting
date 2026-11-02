@@ -18,4 +18,4 @@ Artifacts: `ml/data/synthetic/link_observations.csv`, `ml/models/delivery_tree.j
 
 ## Integration and limits
 
-Model controls candidate selection only in `simulator/core.py` through Python `predict_proba`; it does not control INET AODV or hardware. See [integration status](../docs/machine_learning/model_integration.md), [dataset details](../docs/machine_learning/dataset_generation.md), [evaluation](../docs/machine_learning/evaluation.md). Exported JSON is metadata, not a portable C++ inference model.
+This Python model controls only `simulator/core.py`. A separate INET route-choice tree and C++ forwarder live in [simulation/inet/ml-routing](../simulation/inet/ml-routing/README.md); the models and feature sets are distinct. Neither controls physical hardware. See [integration status](../docs/machine_learning/model_integration.md), [dataset details](../docs/machine_learning/dataset_generation.md), [evaluation](../docs/machine_learning/evaluation.md).
