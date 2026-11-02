@@ -1,0 +1,3 @@
+# Contributing
+
+Keep simulation evidence reproducible and label synthetic, measured, planned, and unverified work separately. Use project-relative paths; never commit credentials, local environments, raw generated traces, or unrelated coursework. Keep changes scoped, run `python tools/validation/validate_environment.py --python-only`, and run `python -m pytest -q` for Python changes. Simulation changes also require the checks in [Simulation guide](docs/simulation/simulation_workflow.md); report unavailable toolchains as unverified. Do not claim physical radio or hardware validation without recorded measurements and method.

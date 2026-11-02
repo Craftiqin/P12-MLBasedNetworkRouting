@@ -1,0 +1,5 @@
+# Evaluation and known limitations
+
+Included model metadata records failure-class recall **0.0**. This means held-out failures were not identified by the stored classifier at its current threshold; accuracy cannot conceal this. Re-run `python train_model.py` to recompute artifact metrics, then inspect `failure_recall`, `failure_precision`, confusion matrix and test conditions. No claim that ML beats minimum-hop is warranted without reproduced paired output and uncertainty analysis.
+
+Dataset is synthetic and drawn from same generator family. Holding out complete run IDs reduces row leakage, but default ordering also groups conditions; this does not establish generalization to independent physical conditions. Experiment seed varies per scenario/trial while model is fit once with suite seed; data seed and trial seed have different roles and are recorded. No real ACK observations, radio calibration, interference/MAC retries, mobility, energy, or hardware tests exist. The Python simulator is sequential and simplified. INET AODV performance is unverified until compiled and run; comparisons across the two simulators are not valid head-to-head evidence.

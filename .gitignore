@@ -1,0 +1,53 @@
+# Python and local environments
+.venv/
+venv/
+__pycache__/
+*.py[cod]
+.pytest_cache/
+.mypy_cache/
+.ruff_cache/
+
+# IDE and OS files
+.DS_Store
+.idea/
+.vscode/
+*.swp
+
+# Local configuration and secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# OMNeT++ generated build/runtime outputs
+simulation/inet/out/
+simulation/inet/results/*.sca
+simulation/inet/results/*.vec
+simulation/inet/results/*.vci
+simulation/inet/results/*.rt
+simulation/inet/*.so
+simulation/inet/*.dll
+simulation/inet/*.dylib
+simulation/inet/Makefile
+simulation/inet/src/Makefile
+
+# Reproducible/generated ML and experiment outputs
+ml/data/processed/
+
+# Source papers retained locally; link to publisher copies from documentation
+papers/*.pdf
+
+# Explicitly unrelated report in original workspace
+reports/MiniProject_RCC_v1 (1).pdf
+
+# INET outputs when commands run from its project directory
+simulation/inet/results/*.sca
+simulation/inet/results/*.vec
+simulation/inet/results/*.vci
+simulation/inet/results/*.rt
+simulation/inet/results/omnet_summary.csv
+
+# Historical report backups and duplicate/older PDF snapshots retained locally
+reports/backups/
+reports/v.pdf

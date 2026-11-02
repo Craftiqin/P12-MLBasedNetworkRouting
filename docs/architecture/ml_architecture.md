@@ -1,0 +1,3 @@
+# ML architecture
+
+`ml/pipeline.py` generates synthetic link observations and trains a scikit-learn `DecisionTreeClassifier` with max depth 6, minimum leaf size 8 and balanced classes. Target: ACK success for one simulated link attempt. Features: RSSI, latency, estimated loss, throughput, remaining hops. `routing/engines.py` scores eligible next hops using predicted one-hop success and modeled shortest-tail success; it has loop avoidance, hysteresis and minimum-hop fallback. This is Python-only; no C++ inference, INET module, firmware, or measured observations exist. See [model integration boundary](../machine_learning/model_integration.md).

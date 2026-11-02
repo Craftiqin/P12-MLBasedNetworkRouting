@@ -1,0 +1,9 @@
+[project]
+name = "p12-ml-based-network-routing"
+version = "0.1.0"
+description = "Synthetic Python and INET AODV experiments for IoT mesh routing"
+requires-python = ">=3.11,<3.12"
+
+[tool.pytest.ini_options]
+pythonpath = ["."]
+testpaths = ["tests"]
