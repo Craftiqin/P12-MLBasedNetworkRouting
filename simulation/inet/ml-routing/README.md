@@ -42,6 +42,13 @@ python3 -m venv .ml-venv
 .ml-venv/bin/python -m unittest discover -s tests -v
 ```
 
+`MLRoutePreference` exercises preferred-route selection; `MLPreferredPathFailure`
+checks failover; `MLVisualDemo` is a shorter 16-second animation profile. AODV
+baseline uses `CleanVisualDemo` or `Normal`. The runners default to finite
+Cmdenv, apply a 60-second wall-clock timeout, and preserve stdout/stderr and
+status manifests. Use `--ui Qtenv` for an interactive run; runner returns PID
+and log path while Qtenv stays open.
+
 Each experiment creates a new UTC-stamped `experiments/runs/` directory. Local build and run outputs are ignored by Git; curated, path-sanitized five-seed results are in [`results/repeated-5-seed`](results/repeated-5-seed/). Paired repetition across five scenarios and seeds:
 
 ```sh
@@ -54,14 +61,16 @@ The runner executes sequentially, validates matching seed sets and traffic manif
 
 ## Qtenv
 
-From this folder with OMNeT++/INET environments active:
+From this folder with OMNeT++/INET environments active, launch the short ML
+demo through the platform-aware runner:
 
 ```sh
-inet -u Qtenv -n "src:$INET_ROOT/src" -l libmesh.dylib \
-  -f simulations/mesh/omnetpp.ini -c MLLinkRecovery
+.ml-venv/bin/python tools/run_ml_experiment.py --config MLVisualDemo --ui Qtenv --seed-set 17
 ```
 
-Replace `libmesh.dylib` with platform library name where needed. The current macOS Qtenv process launched, but visual inspection was blocked because Screen Recording permission was not granted for screenshot capture. Do not treat positions, labels, route overlay, animation, or visual failure/recovery as verified until inspected in Qtenv.
+For AODV view, use `tools/run_aodv_experiment.py --ui Qtenv --config CleanVisualDemo`.
+Qtenv visual correctness is not established by process launch; inspect packet
+animation, route overlay, and node layout in the live window.
 
 ## Routing and safety details
 

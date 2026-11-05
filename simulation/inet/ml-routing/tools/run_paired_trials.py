@@ -6,12 +6,14 @@ import csv
 import json
 import re
 import statistics
-import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
+sys.path.insert(0, str(ROOT))
+from tools.simulation_process import run_finite_simulation  # noqa: E402
+
 CONDITIONS = {
     "healthy": ("Normal", "MLRouting"),
     "degraded_reliability": ("AODVDegradedReliability", "MLDegradedReliability"),
@@ -21,11 +23,15 @@ CONDITIONS = {
 }
 
 
-def run(command, log_path):
-    result = subprocess.run(command, cwd=ROOT, capture_output=True, text=True)
+def run(command, log_path, timeout_seconds):
+    result = run_finite_simulation(command, ROOT, timeout_seconds)
     log_path.write_text(result.stdout + result.stderr)
-    if result.returncode:
-        raise RuntimeError(f"Command failed ({result.returncode}); see {log_path}\n{result.stderr[-2000:]}")
+    if result.timed_out or result.returncode:
+        raise RuntimeError(
+            f"Command failed: timed_out={result.timed_out}, return_code={result.returncode}, "
+            f"elapsed={result.elapsed_seconds:.3f}s, command={command!r}; see {log_path}\n"
+            f"{(result.stdout + result.stderr)[-2000:]}"
+        )
     return result.stdout
 
 
@@ -66,7 +72,11 @@ def main():
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--seeds", type=int, nargs="+", default=[17, 18, 19, 20, 21])
     parser.add_argument("--conditions", nargs="+", choices=CONDITIONS, default=list(CONDITIONS))
+    parser.add_argument("--timeout-seconds", type=float, default=60,
+                        help="per-simulation Cmdenv timeout (default: 60)")
     args = parser.parse_args()
+    if args.timeout_seconds <= 0:
+        parser.error("--timeout-seconds must be positive")
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     output = ROOT / "experiments" / "comparisons" / f"{stamp}-repeated"
     suffix = 1
@@ -80,11 +90,13 @@ def main():
         for seed in args.seeds:
             stem = f"{condition}-seed{seed}"
             ml_stdout = run([sys.executable, "tools/run_ml_experiment.py", "--config", ml_config,
-                             "--seed-set", str(seed)], output / f"{stem}-ml-runner.log")
+                             "--seed-set", str(seed), "--timeout-seconds", str(args.timeout_seconds)],
+                            output / f"{stem}-ml-runner.log", args.timeout_seconds + 20)
             ml_dir = run_dir(ml_stdout, r"validated: (.+)")
             aodv_stdout = run([sys.executable, "tools/run_aodv_experiment.py", "--ui", "Cmdenv",
-                               "--config", aodv_config, "--seed-set", str(seed)],
-                              output / f"{stem}-aodv-runner.log")
+                               "--config", aodv_config, "--seed-set", str(seed),
+                               "--timeout-seconds", str(args.timeout_seconds)],
+                              output / f"{stem}-aodv-runner.log", args.timeout_seconds + 20)
             aodv_dir = run_dir(aodv_stdout, r"Raw result files and manifest: (.+)")
             am = json.loads((aodv_dir / "manifest.json").read_text())
             mm = json.loads((ml_dir / "manifest.json").read_text())
@@ -92,7 +104,9 @@ def main():
                 raise RuntimeError(f"Unmatched AODV/ML trial: {stem}")
             metrics = load_metrics(aodv_dir, ml_dir)
             rows.append({"condition": condition, "seed_set": seed, "aodv_config": aodv_config,
-                         "ml_config": ml_config, "aodv_run": str(aodv_dir), "ml_run": str(ml_dir), **metrics})
+                         "ml_config": ml_config, "aodv_run": str(aodv_dir), "ml_run": str(ml_dir),
+                         "aodv_elapsed_seconds": am.get("elapsed_seconds"),
+                         "ml_elapsed_seconds": mm.get("elapsed_seconds"), **metrics})
             print(f"{condition} seed={seed}: AODV PDR={metrics['aodv_pdr']} ML PDR={metrics['ml_pdr']}", flush=True)
 
     with (output / "trial_results.csv").open("w", newline="") as stream:

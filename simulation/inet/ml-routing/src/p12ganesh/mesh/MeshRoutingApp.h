@@ -15,13 +15,17 @@ class MeshRoutingApp : public inet::UdpBasicApp, public omnetpp::cListener {
     std::set<int> sourcePacketIds;
     std::set<int> deliveredPacketIds;
     std::map<int, std::string> sentRouteById;
+    std::map<int, inet::simtime_t> packetGeneratedAt;
     long delivered = 0, forwarded = 0, droppedDuplicate = 0, droppedHopLimit = 0, droppedLoop = 0;
     long selectedUpper = 0, selectedLower = 0, routeChanges = 0;
+    long sourceHandoffs = 0;
     int lastRoute = -1;
     double delaySum = 0, hopSum = 0;
     long mlDecisions = 0, mlFallbacks = 0;
+    long mlValidPredictions = 0, mlRejectedPredictions = 0;
     int lastPrediction = -1, lastSelectedRoute = -1;
     bool lastFallback = false;
+    bool lastPredictionValid = false;
     p12ganesh::ml::RouteFeatures lastFeatures{};
     int lastUpperAvailable = -1;
     int lastLowerAvailable = -1;

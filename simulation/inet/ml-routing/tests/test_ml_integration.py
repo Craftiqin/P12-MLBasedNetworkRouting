@@ -39,9 +39,34 @@ class MlRoutingIntegrationTests(unittest.TestCase):
         self.assertEqual(metrics["valid_delivered_path_count"], 280)
         self.assertEqual(metrics["delivered_path_errors"], [])
         self.assertEqual(metrics["loop_drops"], 0)
-        for marker in ("PACKET event=generated", "PACKET event=received", "PACKET event=forwarded",
+        for marker in ("[ML-STATUS]", "[ML-INFERENCE]", "[ML-PREDICTION]", "[ROUTE-SELECTION]",
+                       "[PACKET-FORWARD]", "[PACKET-DELIVERED]", "[ML-SUMMARY]",
+                       "PACKET event=generated", "PACKET event=received", "PACKET event=forwarded",
                        "PACKET event=delivered", "ROUTE_CHANGED"):
             self.assertIn(marker, stdout)
+        self.assertIn("feature_order=upper_available,upper_pdr_estimate,upper_latency_ms,upper_hops,lower_available,lower_pdr_estimate,lower_latency_ms,lower_hops", stdout)
+        self.assertIn("prediction_matches_selection=true", stdout)
+        self.assertIn("selected_next_hop=node[4]", stdout)
+        self.assertIn("packets_delivered=280", stdout)
+        with (run_dir / "ml_decision_trace.csv").open(newline="") as stream:
+            trace = list(csv.DictReader(stream))
+        self.assertEqual(len(trace), 280)
+        self.assertTrue(all(row["prediction"] == "lower" for row in trace))
+        self.assertTrue(all(row["selected_next_hop"] == "node[4]" for row in trace))
+        self.assertTrue(all(row["forwarded"] == "true" and row["delivered"] == "true" for row in trace))
+        self.assertTrue(all(row["relay_forwards"] == "2" for row in trace))
+        self.assertIn("Packet-level ML decision trace", (run_dir / "dashboard" / "index.html").read_text())
+        metrics = json.loads((run_dir / "metrics.json").read_text())
+        self.assertEqual(metrics["ml_inference_calls"], 280)
+        self.assertEqual(metrics["valid_predictions"], 280)
+        self.assertEqual(metrics["rejected_predictions"], 0)
+        self.assertEqual(metrics["fallback_decisions"], 0)
+        self.assertEqual(metrics["source_handoffs"], 280)
+        self.assertEqual(metrics["packets_forwarded_at_relays"], 560)
+        summary = re.search(r"\[ML-SUMMARY\].*mean_delay_ms=([0-9.]+).*mean_packet_hops=([0-9.]+)", stdout)
+        self.assertIsNotNone(summary, stdout[-2000:])
+        self.assertAlmostEqual(float(summary.group(1)), metrics["mean_delay_ms"], places=2)
+        self.assertAlmostEqual(float(summary.group(2)), metrics["mean_packet_hops"], places=6)
         dashboard = run_dir / "dashboard"
         self.assertTrue((dashboard / "index.html").is_file())
         for chart in ("01-pdr.svg", "02-delay.svg", "03-throughput.svg", "04-hop-count.svg",
@@ -54,6 +79,7 @@ class MlRoutingIntegrationTests(unittest.TestCase):
         self.assertTrue(after_failure)
         self.assertTrue(all(row["upper_available"] == "0" for row in after_failure))
         self.assertTrue(all(row["selected_route"] == "lower" and row["next_hop_id"] == "4" for row in after_failure))
+        self.assertTrue(all(row["fallback"] == "1" for row in after_failure))
         self.assertIsNotNone(metrics["route_recovery_s"])
         self.assertEqual(metrics["pdr"], 1.0)
         self.assertIn("FAILURE_DETECTED", stdout)
@@ -65,6 +91,7 @@ class MlRoutingIntegrationTests(unittest.TestCase):
         drops = [row for row in events if row["event"] == "no_route_drop"]
         self.assertTrue(decisions)
         self.assertTrue(all(row["selected_route"] == "none" and row["next_hop_id"] == "-1" for row in decisions))
+        self.assertTrue(all(row["fallback"] == "1" for row in decisions))
         self.assertTrue(drops)
         self.assertEqual(metrics["packets_generated"], 280)
         self.assertGreater(metrics["packets_lost_by_end"], 0)

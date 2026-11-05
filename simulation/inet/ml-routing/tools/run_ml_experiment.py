@@ -5,7 +5,6 @@ import argparse
 import json
 import os
 import shutil
-import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -13,16 +12,24 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[1]
 sys.path.insert(0, str(ROOT))
 from ml.analyze_runtime_trace import analyze  # noqa: E402
+from tools.simulation_process import launch_interactive_simulation, run_finite_simulation  # noqa: E402
 
 CONFIGS = {"MLRouting", "MLRoutePreference", "MLPreferredPathFailure", "MLNoRoute", "MLLinkRecovery",
-           "MLDegradedReliability", "MLIncreasedLatency"}
+           "MLDegradedReliability", "MLIncreasedLatency", "MLVisualDemo"}
+DEFAULT_TIMEOUT_SECONDS = 60
 
 
 def main():
     parser = argparse.ArgumentParser()
     parser.add_argument("--config", choices=sorted(CONFIGS), default="MLRouting")
+    parser.add_argument("--ui", choices=("Cmdenv", "Qtenv"), default="Cmdenv",
+                        help="Cmdenv is finite batch mode; Qtenv launches interactively and returns")
     parser.add_argument("--seed-set", type=int, default=17)
+    parser.add_argument("--timeout-seconds", type=float, default=DEFAULT_TIMEOUT_SECONDS,
+                        help="wall-clock limit for finite Cmdenv simulation (default: 60)")
     args = parser.parse_args()
+    if args.timeout_seconds <= 0:
+        parser.error("--timeout-seconds must be positive")
     inet_root = os.environ.get("INET_ROOT")
     inet = shutil.which("inet")
     if not inet or not inet_root:
@@ -43,35 +50,83 @@ def main():
     vec = run_dir / f"{args.config}.vec"
     failure_time = {"MLPreferredPathFailure": 30.0, "MLLinkRecovery": 30.0, "MLNoRoute": 3.0}.get(args.config)
     restart_time = 45.0 if args.config == "MLLinkRecovery" else None
-
     library_names = ("libmesh.dylib", "libmesh.so", "libmesh.dll", "mesh.dll")
     library = next((ROOT / name for name in library_names if (ROOT / name).is_file()), None)
     if library is None:
         raise SystemExit("Project library missing; run tools/configure_build.py first")
 
+    ned_path = os.pathsep.join((str(ROOT / "src"), str(Path(inet_root) / "src")))
     command = [
-        inet, "-u", "Cmdenv", "-n", f"../../src:{inet_root}/src", "-l", str(library),
+        inet, "-u", args.ui, "-n", ned_path, "-l", str(library),
         "-f", "omnetpp.ini", "-c", args.config, "-r", "0",
         f"--seed-set={args.seed_set}", "--cmdenv-express-mode=false",
         f"--output-scalar-file={sca}", f"--output-vector-file={vec}",
         f'--*.node[*].app[0].eventLog="{events}"',
     ]
-    result = subprocess.run(command, cwd=ROOT / "simulations" / "mesh", capture_output=True, text=True)
-    (run_dir / "stdout.log").write_text(result.stdout + result.stderr)
+    if args.ui == "Qtenv":
+        log_path = run_dir / "qtenv.log"
+        try:
+            pid = launch_interactive_simulation(command, ROOT / "simulations" / "mesh", log_path)
+        except OSError as error:
+            (run_dir / "runner-error.txt").write_text(f"Could not start Qtenv: {error}\nCommand: {command!r}\n")
+            raise SystemExit(f"Runner failed to start Qtenv; details: {run_dir}") from error
+        manifest = {
+            "config": args.config,
+            "routing": "ML Decision Tree application-level next-hop forwarding",
+            "ui": "Qtenv",
+            "status": "interactive_started",
+            "command": command,
+            "pid": pid,
+            "started_at_utc": datetime.now(timezone.utc).isoformat(),
+            "log": str(log_path),
+            "sim_time_limit_s": 16 if args.config == "MLVisualDemo" else 60,
+            "note": "Interactive session returned to caller; run simulation in Qtenv, then close GUI to exit.",
+            "seed_set": args.seed_set,
+        }
+        (run_dir / "manifest.json").write_text(json.dumps(manifest, indent=2) + "\n")
+        print(f"Qtenv launched (interactive; PID {pid}): {run_dir}", flush=True)
+        print(f"Qtenv log: {log_path}", flush=True)
+        return
+
+    try:
+        result = run_finite_simulation(command, ROOT / "simulations" / "mesh", args.timeout_seconds)
+    except OSError as error:
+        (run_dir / "runner-error.txt").write_text(f"Could not start simulator: {error}\nCommand: {command!r}\n")
+        raise SystemExit(f"Runner failed to start simulator; details: {run_dir / 'runner-error.txt'}") from error
+    (run_dir / "stdout.log").write_text(result.stdout)
+    (run_dir / "stderr.log").write_text(result.stderr)
+    if result.timed_out:
+        status = "simulator_timeout"
+    elif result.returncode:
+        status = "simulator_failed"
+    else:
+        status = "simulated"
     manifest = {
         "config": args.config,
         "routing": "ML Decision Tree application-level next-hop forwarding",
-        "status": "simulation_failed" if result.returncode else "simulated",
+        "ui": "Cmdenv",
+        "status": status,
         "command": command,
+        "timeout_seconds": args.timeout_seconds,
+        "started_at_utc": result.started_at_utc,
+        "ended_at_utc": result.ended_at_utc,
+        "elapsed_seconds": result.elapsed_seconds,
+        "return_code": result.returncode,
         "seed_set": args.seed_set,
-        "application_traffic": {"payload_bytes": 128, "send_interval_s": 0.2,
-                                "start_time_s": 2.0, "stop_time_s": 58.0},
+        "application_traffic": {"payload_bytes": 128,
+                                "send_interval_s": 0.5 if args.config == "MLVisualDemo" else 0.2,
+                                "start_time_s": 2.0,
+                                "stop_time_s": 14.0 if args.config == "MLVisualDemo" else 58.0},
         "failure_time_s": failure_time,
         "restart_time_s": restart_time,
     }
-    if result.returncode:
-        manifest["return_code"] = result.returncode
-    else:
+    if result.timed_out:
+        manifest["timeout_diagnostics"] = (
+            f"Simulator exceeded {args.timeout_seconds:g}s wall-clock timeout; "
+            "sent SIGTERM, then SIGKILL only if it did not exit within 5s. "
+            f"Command: {command!r}"
+        )
+    if not result.timed_out and result.returncode == 0:
         try:
             manifest["metrics"] = analyze(events, run_dir, failure_time=failure_time,
                                            restart_time=restart_time)
@@ -86,8 +141,11 @@ def main():
         print(f"PDR={metrics['pdr']:.4f} delivered={metrics['packets_received_unique']}/{metrics['packets_generated']} "
               f"delay_ms={metrics['mean_delay_ms']} hops={metrics['mean_packet_hops']} "
               f"routes={metrics['valid_delivered_path_count']}")
-    if result.returncode or manifest["status"] != "validated":
-        print((run_dir / "stdout.log").read_text()[-4000:], file=sys.stderr)
+    if result.timed_out or result.returncode or manifest["status"] != "validated":
+        print(f"elapsed={result.elapsed_seconds:.3f}s return_code={result.returncode} "
+              f"timed_out={result.timed_out} command={command!r}", file=sys.stderr)
+        print((run_dir / "stdout.log").read_text()[-3000:], file=sys.stderr)
+        print((run_dir / "stderr.log").read_text()[-1000:], file=sys.stderr)
         raise SystemExit(1)
 
 

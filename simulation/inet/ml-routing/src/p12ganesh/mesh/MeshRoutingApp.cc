@@ -29,6 +29,14 @@ void MeshRoutingApp::initialize(int stage) {
         auto status = getParentModule()->getSubmodule("status");
         if (status)
             status->subscribe(NodeStatus::nodeStatusChangedSignal, this);
+        if (getParentModule()->getIndex() == 5 && par("strategy").stdstringValue() == "ml") {
+            EV_INFO << "[ML-STATUS] config=" << getEnvir()->getConfigEx()->getActiveConfigName()
+                    << " routing=ML active=true model=" << p12ganesh::ml::MODEL_VERSION
+                    << " implementation=compiled_cpp_tree"
+                    << " artifact=ml/generated/runtime-v2/DecisionTreeModel.h initialized=true"
+                    << " feature_order=upper_available,upper_pdr_estimate,upper_latency_ms,upper_hops,"
+                       "lower_available,lower_pdr_estimate,lower_latency_ms,lower_hops" << endl;
+        }
     }
 }
 
@@ -41,6 +49,11 @@ void MeshRoutingApp::receiveSignal(cComponent *source, simsignal_t signalID,
                             status->getState() == NodeStatus::GOING_UP ? "GOING_UP" : "GOING_DOWN";
         EV_INFO << "NODE_STATUS node=" << getParentModule()->getIndex()
                 << " state=" << state << " (module state only; path readiness requires packet proof)" << endl;
+        std::ostringstream bubble;
+        bubble << "node[" << getParentModule()->getIndex() << "] " << state;
+        if (status->getState() == NodeStatus::UP)
+            bubble << "; route waits for end-to-end probe";
+        getParentModule()->bubble(bubble.str().c_str());
     }
 }
 
@@ -90,7 +103,31 @@ int MeshRoutingApp::chooseRoute() {
     };
     lastPrediction = p12ganesh::ml::predict(lastFeatures);
     lastSelectedRoute = p12ganesh::ml::selectSafely(lastPrediction, lastFeatures);
+    lastPredictionValid = lastPrediction == 0 || lastPrediction == 1;
     lastFallback = lastSelectedRoute != lastPrediction;
+    if (lastPredictionValid) ++mlValidPredictions;
+    if (!lastPredictionValid || lastFallback) ++mlRejectedPredictions;
+    const auto routeName = [](int route) { return route == 0 ? "upper" : route == 1 ? "lower" : "none"; };
+    EV_INFO << "[ML-INFERENCE] time=" << simTime() << " node=" << getParentModule()->getFullName()
+            << " packet=" << numSent << " destination=node[0] model=" << p12ganesh::ml::MODEL_VERSION
+            << " candidates={upper:nextHop=node[2],available=" << lastFeatures.upper_available
+            << ";lower:nextHop=node[4],available=" << lastFeatures.lower_available << '}'
+            << " features={upper_available=" << lastFeatures.upper_available
+            << ",upper_pdr_estimate=" << lastFeatures.upper_pdr_estimate
+            << ",upper_latency_ms=" << lastFeatures.upper_latency_ms
+            << ",upper_hops=" << lastFeatures.upper_hops
+            << ",lower_available=" << lastFeatures.lower_available
+            << ",lower_pdr_estimate=" << lastFeatures.lower_pdr_estimate
+            << ",lower_latency_ms=" << lastFeatures.lower_latency_ms
+            << ",lower_hops=" << lastFeatures.lower_hops << '}' << endl;
+    EV_INFO << "[ML-PREDICTION] time=" << simTime() << " packet=" << numSent
+            << " predicted_route=" << routeName(lastPrediction)
+            << " prediction_valid=" << (lastPredictionValid ? "true" : "false") << endl;
+    EV_INFO << "[ROUTE-SELECTION] time=" << simTime() << " packet=" << numSent
+            << " selected_route=" << routeName(lastSelectedRoute)
+            << " selected_next_hop=" << (lastSelectedRoute == 0 ? "node[2]" : lastSelectedRoute == 1 ? "node[4]" : "none")
+            << " prediction_matches_selection=" << (!lastFallback ? "true" : "false")
+            << " fallback_used=" << (lastFallback ? "true" : "false") << endl;
     return lastSelectedRoute;
 }
 
@@ -141,16 +178,18 @@ void MeshRoutingApp::writeEvent(const std::string& event, int packetId, const st
     std::ofstream out(path, std::ios::app);
     if (!out) throw cRuntimeError("Cannot open MeshRoutingApp event log: %s", path.c_str());
     if (writeHeader)
-        out << "time_s,event,packet_id,node_id,route,predicted_route,selected_route,next_hop_id,fallback,"
-               "upper_available,upper_pdr_estimate,upper_latency_ms,lower_available,lower_pdr_estimate,"
-               "lower_latency_ms,hops,delay_ms,model_version,detail\n";
+        out << "time_s,event,packet_id,node_id,route,predicted_route,prediction_valid,selected_route,next_hop_id,fallback,"
+               "upper_available,upper_pdr_estimate,upper_latency_ms,upper_hops,lower_available,lower_pdr_estimate,"
+               "lower_latency_ms,lower_hops,hops,delay_ms,model_version,detail\n";
     auto routeText = [](int value) { return value == 0 ? "upper" : value == 1 ? "lower" : "none"; };
     out << std::setprecision(12) << simTime().dbl() << ',' << event << ',' << packetId << ','
         << getParentModule()->getIndex() << ',' << route << ',' << routeText(lastPrediction) << ','
-        << routeText(lastSelectedRoute) << ',' << nextHop << ',' << (lastFallback ? 1 : 0) << ','
+        << (lastPredictionValid ? 1 : 0) << ',' << routeText(lastSelectedRoute) << ','
+        << nextHop << ',' << (lastFallback ? 1 : 0) << ','
         << lastFeatures.upper_available << ',' << lastFeatures.upper_pdr_estimate << ','
-        << lastFeatures.upper_latency_ms << ',' << lastFeatures.lower_available << ','
-        << lastFeatures.lower_pdr_estimate << ',' << lastFeatures.lower_latency_ms << ','
+        << lastFeatures.upper_latency_ms << ',' << lastFeatures.upper_hops << ','
+        << lastFeatures.lower_available << ',' << lastFeatures.lower_pdr_estimate << ','
+        << lastFeatures.lower_latency_ms << ',' << lastFeatures.lower_hops << ','
         << hops << ',' << delayMs << ',' << p12ganesh::ml::MODEL_VERSION << ',' << detail << '\n';
 }
 
@@ -160,6 +199,7 @@ void MeshRoutingApp::sendPacket() {
     sendRecoveryProbes();
     const int packetId = numSent;
     sourcePacketIds.insert(packetId);
+    packetGeneratedAt[packetId] = simTime();
     if (par("strategy").stdstringValue() == "ml") {
         writeEvent("decision", packetId, selected == 0 ? "upper" : selected == 1 ? "lower" : "none",
                    selected == 0 ? 2 : selected == 1 ? 4 : -1, 0, -1.0, "");
@@ -188,6 +228,14 @@ void MeshRoutingApp::sendPacket() {
         EV_INFO << "ROUTE_CHANGED time=" << simTime() << " packet=" << packetId
                 << " route=" << (selected == 0 ? "upper" : selected == 1 ? "lower" : "none")
                 << " nextHop=" << (selected == 0 ? 2 : selected == 1 ? 4 : -1) << endl;
+    if (par("strategy").stdstringValue() == "ml" && routeChanged && selected >= 0) {
+        std::ostringstream bubble;
+        bubble << "ML selected " << (selected == 0 ? "upper" : "lower") << " via Relay "
+               << (selected == 0 ? "A2" : "B2") << "; alternate "
+               << (selected == 0 ? "lower via B2 available=" : "upper via A2 available=")
+               << (selected == 0 ? lastFeatures.lower_available : lastFeatures.upper_available);
+        getParentModule()->bubble(bubble.str().c_str());
+    }
     lastRoute = selected;
     if (selected < 0) {
         sentRouteById[packetId] = "none";
@@ -218,6 +266,13 @@ void MeshRoutingApp::sendPacket() {
     packet->removeTagIfPresent<L4PortReq>();
     packet->addTag<L3AddressReq>()->setDestAddress(addressForNode(path[1]));
     socket.sendTo(packet, addressForNode(path[1]), destPort);
+    ++sourceHandoffs;
+    if (par("strategy").stdstringValue() == "ml")
+        EV_INFO << "[PACKET-FORWARD] time=" << simTime() << " packet=" << packetId
+                << " current_node=node[5] next_hop=node[" << path[1] << "] route="
+                << (selected == 0 ? "upper" : "lower") << " result=sendTo_returned" << endl;
+    writeEvent("source_handoff", packetId, selected == 0 ? "upper" : "lower", path[1], 1, -1.0,
+               "socket_sendTo_returned");
     ++numSent;
 }
 
@@ -332,14 +387,24 @@ void MeshRoutingApp::processPacket(Packet *packet) {
     if (here == 0) {
         ++delivered;
         deliveredPacketIds.insert(seq);
-        auto tag = packet->findTag<CreationTimeTag>();
-        double delay = tag ? (simTime() - tag->getCreationTime()).dbl() : -1.0;
+        double delay = -1.0;
+        auto network = getParentModule()->getParentModule();
+        auto source = network->getSubmodule("node", 5);
+        auto sourceApp = source ? dynamic_cast<MeshRoutingApp *>(source->getSubmodule("app", 0)) : nullptr;
+        if (sourceApp && sourceApp->packetGeneratedAt.count(seq))
+            delay = (simTime() - sourceApp->packetGeneratedAt.at(seq)).dbl();
+        else {
+            auto tag = packet->findTag<CreationTimeTag>();
+            if (tag) delay = (simTime() - tag->getCreationTime()).dbl();
+        }
         if (delay >= 0) delaySum += delay;
         hopSum += hops;
         writeEvent("packet_delivered", seq, route, -1, hops, delay >= 0 ? delay * 1000.0 : -1.0, "");
         EV_INFO << "PACKET event=delivered time=" << simTime() << " packet=" << seq
                 << " node=0 hops=" << hops << " delay_s=" << (delay >= 0 ? delay : -1.0)
                 << " route=" << route << endl;
+    EV_INFO << "[PACKET-DELIVERED] time=" << simTime() << " packet=" << seq
+            << " destination=node[0] route=" << route << " hops=" << hops << endl;
         delete packet;
         return;
     }
@@ -349,11 +414,6 @@ void MeshRoutingApp::processPacket(Packet *packet) {
                 << " node=" << here << " reason=invalid_next_hop" << endl;
         ++droppedLoop; writeEvent("loop_drop", seq, route, -1, hops, -1.0, "invalid_next_hop"); delete packet; return;
     }
-    ++forwarded;
-    EV_INFO << "PACKET event=forwarded time=" << simTime() << " packet=" << seq
-            << " node=" << here << " nextHop=" << routeNodes[nextPosition]
-            << " route=" << route << " hops=" << hops + 1 << endl;
-    writeEvent("packet_forwarded", seq, route, routeNodes[nextPosition], hops + 1, -1.0, "");
     std::ostringstream nextName;
     nextName << "MeshData|" << seq << "|" << route << "|" << nextPosition << "|" << (hops + 1);
     packet->setName(nextName.str().c_str());
@@ -365,6 +425,15 @@ void MeshRoutingApp::processPacket(Packet *packet) {
     // would route this recycled packet back to this app instead of UDP.
     packet->removeTagIfPresent<SocketInd>();
     socket.sendTo(packet, addressForNode(routeNodes[nextPosition]), destPort);
+    ++forwarded;
+    EV_INFO << "PACKET event=forwarded time=" << simTime() << " packet=" << seq
+            << " node=" << here << " nextHop=" << routeNodes[nextPosition]
+            << " route=" << route << " hops=" << hops + 1 << endl;
+    EV_INFO << "[PACKET-FORWARD] time=" << simTime() << " packet=" << seq
+            << " current_node=" << getParentModule()->getFullName()
+            << " next_hop=node[" << routeNodes[nextPosition] << "] route=" << route
+            << " result=sendTo_returned" << endl;
+    writeEvent("packet_forwarded", seq, route, routeNodes[nextPosition], hops + 1, -1.0, "socket_sendTo_returned");
 }
 
 void MeshRoutingApp::finish() {
@@ -376,14 +445,45 @@ void MeshRoutingApp::finish() {
     recordScalar("mesh duplicate drops", droppedDuplicate);
     recordScalar("mesh hop-limit drops", droppedHopLimit);
     recordScalar("mesh loop drops", droppedLoop);
-    recordScalar("mesh mean delay seconds", delivered ? delaySum / delivered : 0);
-    recordScalar("mesh mean hop count", delivered ? hopSum / delivered : 0);
+    if (delivered) {
+        recordScalar("mesh mean delay seconds", delaySum / delivered);
+        recordScalar("mesh mean hop count", hopSum / delivered);
+    }
     recordScalar("mesh generated", numSent);
     recordScalar("ML decisions", mlDecisions);
     recordScalar("ML fallbacks", mlFallbacks);
-    if (getParentModule()->getIndex() == 5)
-        EV_INFO << "ML_SUMMARY generated=" << numSent << " routeChanges=" << routeChanges
-                << " decisions=" << mlDecisions << " fallbacks=" << mlFallbacks << endl;
+    if (getParentModule()->getIndex() == 5 && par("strategy").stdstringValue() == "ml") {
+        auto network = getParentModule()->getParentModule();
+        long networkForwarded = 0;
+        for (int i = 1; i <= 4; ++i) {
+            auto node = network->getSubmodule("node", i);
+            auto app = node ? dynamic_cast<MeshRoutingApp *>(node->getSubmodule("app", 0)) : nullptr;
+            if (app) networkForwarded += app->forwarded;
+        }
+        auto gateway = network->getSubmodule("node", 0);
+        auto gatewayApp = gateway ? dynamic_cast<MeshRoutingApp *>(gateway->getSubmodule("app", 0)) : nullptr;
+        long networkDelivered = gatewayApp ? gatewayApp->delivered : 0;
+        EV_INFO << "[ML-SUMMARY] config=" << getEnvir()->getConfigEx()->getActiveConfigName()
+                << " model=" << p12ganesh::ml::MODEL_VERSION
+                << " inference_calls=" << mlDecisions << " valid_predictions=" << mlValidPredictions
+                << " rejected_predictions=" << mlRejectedPredictions << " fallback_decisions=" << mlFallbacks
+                << " source_handoffs=" << sourceHandoffs << " relay_forward_events=" << networkForwarded
+                << " packets_delivered=" << networkDelivered << " packets_generated=" << numSent
+                << " pdr=";
+        if (numSent) EV_INFO << (double)networkDelivered / numSent;
+        else EV_INFO << "NOT_MEASURED";
+        EV_INFO << " mean_delay_ms=";
+        if (gatewayApp && gatewayApp->delivered)
+            EV_INFO << gatewayApp->delaySum * 1000.0 / gatewayApp->delivered;
+        else
+            EV_INFO << "NOT_MEASURED";
+        EV_INFO << " mean_packet_hops=";
+        if (gatewayApp && gatewayApp->delivered)
+            EV_INFO << gatewayApp->hopSum / gatewayApp->delivered;
+        else
+            EV_INFO << "NOT_MEASURED";
+        EV_INFO << " routing_control_overhead=NOT_MEASURED" << endl;
+    }
     if (getParentModule()->getIndex() == 5) {
         auto gatewayNode = getParentModule()->getParentModule()->getSubmodule("node", 0);
         auto gatewayApp = gatewayNode ? dynamic_cast<MeshRoutingApp *>(gatewayNode->getSubmodule("app", 0)) : nullptr;

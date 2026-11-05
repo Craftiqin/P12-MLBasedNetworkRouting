@@ -93,6 +93,51 @@ def _write_dashboard(output_dir, events, outcomes, metrics, *, failure_time=None
     (dashboard / "06-delivery-timeline.svg").write_text(_svg("Cumulative packet generation and delivery", timeline_body,
                                   "Simulation time (s)", "Cumulative packets"))
 
+    outcome_by_id = {int(row["packet_id"]): row for row in outcomes}
+    handoff_ids = {int(row["packet_id"]) for row in events
+                   if row["event"] == "source_handoff" and int(row["node_id"]) == 5}
+    relay_forwards = {}
+    for row in events:
+        if row["event"] == "packet_forwarded":
+            packet_id = int(row["packet_id"])
+            relay_forwards[packet_id] = relay_forwards.get(packet_id, 0) + 1
+    decision_rows = [row for row in events if row["event"] == "decision" and int(row["node_id"]) == 5]
+    trace_fields = ["time_s", "packet_id", "node_id", "destination_node", "candidate_routes", "feature_values",
+                    "prediction", "prediction_valid", "selected_route", "selected_next_hop",
+                    "prediction_matches_selection", "fallback_used", "forwarded", "relay_forwards", "delivered"]
+    trace_rows = []
+    html_rows = []
+    for row in decision_rows:
+        packet_id = int(row["packet_id"])
+        features = {name: float(row[name]) for name in (
+            "upper_available", "upper_pdr_estimate", "upper_latency_ms", "upper_hops",
+            "lower_available", "lower_pdr_estimate", "lower_latency_ms", "lower_hops")}
+        candidates = (f'upper via node[2] (available={features["upper_available"]:g}); '
+                      f'lower via node[4] (available={features["lower_available"]:g})')
+        selected_hop = int(row["next_hop_id"])
+        delivered = outcome_by_id.get(packet_id, {}).get("status") == "delivered"
+        trace = {
+            "time_s": row["time_s"], "packet_id": packet_id, "node_id": row["node_id"],
+            "destination_node": 0, "candidate_routes": candidates,
+            "feature_values": json.dumps(features, sort_keys=True, separators=(",", ":")),
+            "prediction": row["predicted_route"], "prediction_valid": row["prediction_valid"],
+            "selected_route": row["selected_route"],
+            "selected_next_hop": "none" if selected_hop < 0 else f"node[{selected_hop}]",
+            "prediction_matches_selection": str(
+                row["prediction_valid"] == "1" and row["predicted_route"] == row["selected_route"]
+            ).lower(),
+            "fallback_used": row["fallback"], "forwarded": str(packet_id in handoff_ids).lower(),
+            "relay_forwards": relay_forwards.get(packet_id, 0), "delivered": str(delivered).lower(),
+        }
+        trace_rows.append(trace)
+        cells = [f'<td>{html.escape(str(trace[key]))}</td>' for key in
+                 ("packet_id", "node_id", "candidate_routes", "prediction", "selected_next_hop", "forwarded", "delivered")]
+        html_rows.append("<tr>" + "".join(cells) + "</tr>")
+    with (output_dir / "ml_decision_trace.csv").open("w", newline="") as stream:
+        writer = csv.DictWriter(stream, fieldnames=trace_fields)
+        writer.writeheader()
+        writer.writerows(trace_rows)
+
     cards = [
         ("Generated / received", f'{metrics["packets_generated"]} / {metrics["packets_received_unique"]}'),
         ("PDR", f'{metrics["pdr"]:.4f}'),
@@ -107,10 +152,15 @@ def _write_dashboard(output_dir, events, outcomes, metrics, *, failure_time=None
         ("03-throughput.svg", "Throughput"), ("04-hop-count.svg", "Packet hop count"),
         ("05-route-recovery.svg", "Route selection timeline"), ("06-delivery-timeline.svg", "Packet delivery timeline")])
     provenance = html.escape(metrics["data_origin"])
+    table_html = "".join(html_rows)
     (dashboard / "index.html").write_text(f'''<!doctype html><html lang="en"><meta charset="utf-8"><meta name="viewport" content="width=device-width,initial-scale=1">
-<title>ML routing experiment</title><style>body{{font:15px system-ui;background:#f4f6f8;color:#19232d;margin:2rem}}h1{{margin-bottom:.25rem}}.note{{color:#52616d}}.cards{{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:1.5rem 0}}article,section{{background:white;border:1px solid #d9e0e6;border-radius:10px;padding:12px}}article strong{{display:block;font-size:1.25rem;margin-top:8px}}.plots{{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px}}img{{width:100%;height:auto}}code{{overflow-wrap:anywhere}}</style>
+<title>ML routing experiment</title><style>body{{font:15px system-ui;background:#f4f6f8;color:#19232d;margin:2rem}}h1{{margin-bottom:.25rem}}.note{{color:#52616d}}.cards{{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px;margin:1.5rem 0}}article,section{{background:white;border:1px solid #d9e0e6;border-radius:10px;padding:12px}}article strong{{display:block;font-size:1.25rem;margin-top:8px}}.plots{{display:grid;grid-template-columns:repeat(auto-fit,minmax(340px,1fr));gap:12px}}img{{width:100%;height:auto}}code{{overflow-wrap:anywhere}}.trace{{overflow:auto;max-height:540px;background:white;border:1px solid #d9e0e6}}table{{border-collapse:collapse;width:100%;font-size:13px}}th,td{{padding:8px;border-bottom:1px solid #d9e0e6;text-align:left;white-space:nowrap}}th{{position:sticky;top:0;background:#eaf0f4}}input{{padding:8px;margin:8px 0;width:min(420px,90%)}}</style>
 <h1>ML Decision Tree routing</h1><p class="note">Model {html.escape(metrics['model_version'])}. Data source: {provenance}. Link PDR/latency features are configured estimates, not measured radio observations.</p>
-<div class="cards">{card_html}</div><div class="plots">{imgs}</div><p class="note">Routing control overhead: Not measured. Single simulation run; variability across seeds not available. See packet_outcomes.csv and events.csv for packet ledger and route-decision evidence.</p></html>''')
+<div class="cards">{card_html}</div><div class="plots">{imgs}</div>
+<h2>Packet-level ML decision trace</h2><p class="note">Each row joins recorded inference decision to source UDP handoff, relay forward events, and gateway delivery for same packet ID.</p>
+<input id="trace-filter" type="search" placeholder="Filter packet, route, or node" oninput="filterTrace()"><div class="trace"><table><thead><tr><th>Packet ID</th><th>Node</th><th>Candidate routes</th><th>Prediction</th><th>Selected next hop</th><th>Forwarded?</th><th>Delivered?</th></tr></thead><tbody id="trace-rows">{table_html}</tbody></table></div>
+<p class="note">Full feature values and route-validation fields are in ml_decision_trace.csv. Routing control overhead: Not measured. Single run; variability across seeds unavailable.</p>
+<script>function filterTrace(){{const q=document.getElementById('trace-filter').value.toLowerCase();for(const row of document.querySelectorAll('#trace-rows tr'))row.hidden=!row.textContent.toLowerCase().includes(q)}}</script></html>''')
 
 
 def analyze(events_path: Path, output_dir: Path, *, payload_bytes=128,
@@ -212,6 +262,10 @@ def analyze(events_path: Path, output_dir: Path, *, payload_bytes=128,
     metrics = {
         "routing": "ML Decision Tree application-level next-hop forwarding",
         "model_version": events[0]["model_version"] if events else "unknown",
+        "ml_inference_calls": len(decisions),
+        "valid_predictions": sum(e["prediction_valid"] == "1" for e in decisions),
+        "rejected_predictions": sum(e["prediction_valid"] != "1" or e["fallback"] == "1" for e in decisions),
+        "fallback_decisions": sum(e["fallback"] == "1" for e in decisions),
         "packets_generated": len(generated_ids),
         "packets_received_unique": len(delivered_ids),
         "packets_lost_by_end": len(generated_ids - delivered_ids),
@@ -241,6 +295,8 @@ def analyze(events_path: Path, output_dir: Path, *, payload_bytes=128,
         "hop_limit_drops": sum(e["event"] == "hop_limit_drop" for e in events),
         "routing_control_overhead": "Not measured",
         "valid_delivered_path_count": len(route_proofs),
+        "packets_forwarded_at_relays": sum(e["event"] == "packet_forwarded" for e in events),
+        "source_handoffs": sum(e["event"] == "source_handoff" for e in events),
         "delivered_path_errors": path_errors,
         "data_origin": "OMNeT++/INET simulation events; model features are configured route estimates plus runtime NodeStatus availability",
     }
