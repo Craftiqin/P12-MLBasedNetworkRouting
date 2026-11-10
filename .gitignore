@@ -56,3 +56,5 @@ reports/v.pdf
 
 # Stale 75-page report render bundle; current report PDF has 77 pages
 reports/IoT_Mesh_Intelligent_Routing_Report_70_Plus_Pages/
+
+espfirmware/
