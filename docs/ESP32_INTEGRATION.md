@@ -2,9 +2,9 @@
 
 ## Final intended four-node design
 
-Use four ESP32 DevKit V1 boards with 38-pin headers. Node 1 is the source, Nodes 2 and 3 are relay alternatives, and Node 4 is the destination. Planned paths: Node 1 → Node 2 → Node 4 and Node 1 → Node 3 → Node 4. ESP-NOW is a direct peer transport; multi-hop packet forwarding is application logic. Firmware and physical assembly are not implemented or verified.
+Use four ESP32 DevKit V1 boards with 38-pin headers. Node 1 is sensor/source, Nodes 2 and 3 are relay alternatives, and Node 4 is destination/gateway. Paths: Node 1 → Node 2 → Node 4 and Node 1 → Node 3 → Node 4. ESP-NOW provides direct peer transport; application firmware performs forwarding. Phase 1/2 source is in `firmware/`; compile and physical radio behavior are unverified.
 
-Node 1 alone has one DHT11, one LDR, one sound sensor, and one 1.3-inch 128×64 I²C OLED. All four nodes have one traffic-light indicator module. Confirm exact module models, voltage, output type, current, level compatibility, driver needs, and pin mapping before wiring; no GPIO assignments are established. Node 4 is intended to export records to the FastAPI backend shown in the original project diagram; backend code/configuration is absent, so transport, schema, and successful delivery remain unverified.
+Latest hardware specification assigns Node 1 DHT11 (GPIO17), LDR digital output (GPIO18), sound output (GPIO19), and SH1106 OLED (SCL16/SDA15). All four nodes reserve RGB pins 21/22/23. Verify module voltages, outputs, current, LED polarity and driver needs; ESP32 GPIO must remain 3.3 V-safe. Node 4 API export is a later phase; backend code/configuration is absent from this repository, so routes/schema/auth are unverified.
 
 ## Proposed battery and regulated power path
 

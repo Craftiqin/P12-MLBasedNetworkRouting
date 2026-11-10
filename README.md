@@ -2,7 +2,7 @@
 
 ## Overview
 
-This project studies routing choices for a low-power IoT mesh using a reproducible Python graph simulator and an OMNeT++/INET packet-level simulation. The INET implementation now contains a separate Decision Tree forwarder alongside the preserved AODV baseline. No physical ESP32 routing firmware or measured radio results are present.
+This project studies routing choices for a low-power IoT mesh using a reproducible Python graph simulator and an OMNeT++/INET packet-level simulation. The INET implementation now contains a separate Decision Tree forwarder alongside the preserved AODV baseline. ESP32_01 sensor/source and ESP32_02 receiver/relay source are present; no measured radio results exist.
 
 ## Problem and objectives
 
@@ -13,7 +13,7 @@ Low-power mesh links vary in quality; shortest-hop routing can select unreliable
 - **Python simulation:** seeded graph, sequential packet forwarding, modeled per-link loss/latency, baseline minimum-hop and ML candidate scoring. See [architecture](docs/architecture/system_architecture.md).
 - **ML:** Decision Tree estimates single-link ACK success from synthetic RSSI, latency, loss, throughput, and remaining-hop features. See [ML architecture](docs/architecture/ml_architecture.md).
 - **Packet simulation:** preserved six-router AODV baseline plus a custom Decision Tree forwarder whose predictions choose real next hops. See [AODV baseline](simulation/README.md) and [ML routing implementation](simulation/inet/ml-routing/README.md).
-- **Physical concept:** four ESP32 nodes, two relay corridors, sensors at source. Diagram: [final hardware architecture](diagrams/final_hardware_architecture.svg). It is a design proposal; assembly, firmware, and radio tests are unverified.
+- **Physical prototype:** four ESP32 nodes, two relay corridors. ESP32_01 sensor/source and ESP32_02 receiver/relay firmware source lives in [firmware](firmware/README.md); compile and physical tests remain pending. Current pin specification places sensors at Node 1. Audit and plan: [P12-IOT audit](docs/P12_IOT_AUDIT.md).
 
 ## Implemented features and evidence status
 
@@ -24,7 +24,7 @@ Low-power mesh links vary in quality; shortest-hop routing can select unreliable
 | Generated training data and model | Included | Synthetic, reproducible; do not treat as measured observations |
 | INET AODV baseline | Preserved and rerun | Paired comparison and metrics limitations documented in ML routing results |
 | Custom INET ML forwarder | Implemented and locally validated | macOS 27 / Apple Silicon M1 only; Qtenv visual inspection and relay restart recovery remain incomplete |
-| ESP32 prototype | Planned | No firmware or physical test results |
+| ESP32 prototype | Phase 1/2 firmware source added | PlatformIO build and physical tests not yet run; no measured hardware results |
 
 The checked-in Python link-model snapshot reports failure recall **0.0**; a fresh run recorded **0.0377**. The separate INET route-selection tree is also synthetic. Its five-seed AODV comparison is scenario-specific; it does not establish general ML superiority. See [curated INET results](simulation/inet/ml-routing/results/repeated-5-seed/README.md) and [evidence limits](reports/final_submission/report_validation_summary.md).
 

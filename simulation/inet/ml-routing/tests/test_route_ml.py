@@ -5,6 +5,10 @@ import tempfile
 import unittest
 from pathlib import Path
 
+from sklearn.metrics import confusion_matrix, recall_score
+from sklearn.model_selection import GroupKFold, cross_val_predict
+from sklearn.tree import DecisionTreeClassifier
+
 from ml.generate_route_dataset import generate_rows, write_dataset
 from ml.route_metrics import summarize
 from ml.route_policy import select_safely
@@ -34,6 +38,27 @@ class RouteMlTests(unittest.TestCase):
             self.assertGreaterEqual(metrics["accuracy"], 0.75)
             self.assertIn("synthetic", model["metadata"]["data_origin"])
             self.assertTrue((root / "DecisionTreeModel.h").exists())
+
+    def test_grouped_validation_and_no_route_failure_detection(self):
+        with (ROOT / "ml" / "data" / "route_scenarios.csv").open(newline="") as stream:
+            rows = list(csv.DictReader(stream))
+        training = [row for row in rows if row["split"] == "train"]
+        testing = [row for row in rows if row["split"] == "test"]
+        x_train = [[float(row[name]) for name in FEATURES] for row in training]
+        y_train = [int(row["label_route"]) for row in training]
+        groups = [int(row["seed"]) for row in training]
+        model = DecisionTreeClassifier(max_depth=4, min_samples_leaf=3, random_state=20261101)
+        cv_predictions = cross_val_predict(
+            model, x_train, y_train, groups=groups, cv=GroupKFold(n_splits=5)
+        )
+        self.assertGreaterEqual(recall_score(y_train, cv_predictions, labels=[-1], average="micro"), 0.95)
+        self.assertEqual(confusion_matrix(y_train, cv_predictions, labels=[-1, 0, 1])[0, 1:].sum(), 0)
+
+        model.fit(x_train, y_train)
+        no_route = [row for row in testing if int(row["label_route"]) == -1]
+        self.assertTrue(no_route)
+        x_no_route = [[float(row[name]) for name in FEATURES] for row in no_route]
+        self.assertTrue(all(prediction == -1 for prediction in model.predict(x_no_route)))
 
     def test_invalid_prediction_uses_safe_fallback(self):
         features = {
@@ -113,6 +138,10 @@ int main() {{
     assert(selectSafely(-2, invalidUpper) == 1);
     invalidUpper.lower_available = 0;
     assert(selectSafely(-2, invalidUpper) == -1);
+    RouteFeatures upperUnavailable{{0, 0, 1000, 3, 1, .95, 56, 3}};
+    assert(selectSafely(0, upperUnavailable) == 1);
+    RouteFeatures lowerUnavailable{{1, .9, 31, 3, 0, 0, 1000, 3}};
+    assert(selectSafely(1, lowerUnavailable) == 0);
 }}
 ''')
             exe = root / "smoke"
