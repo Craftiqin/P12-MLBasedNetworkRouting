@@ -17,7 +17,7 @@
     ]
   ],
   "roc_auc": 0.7349793278207523,
-  "inference_ms_per_observation": 0.00038592592183569514,
+  "inference_ms_per_observation": 0.0004181785172679358,
   "train_runs": [
     0,
     1,

@@ -88,9 +88,11 @@ def test_dashboard_derives_route_only_from_live_persisted_records():
     assert 'latest_event.get("routingMode") == "ML_ACTIVE"' in app
     assert 'latest_event.get("forwardingResult") == "GATEWAY_RECEIVED"' in app
     assert "P12_STALE_AFTER_SECONDS = 15" in app
-    assert '@st.fragment(run_every="5s")' in app
+    assert 'run_every=f"{refresh_interval}s" if auto_refresh_enabled else None' in app
     assert '"Failed transmissions", "N/A' in app
-    assert "SIMULATION DATA remains in the simulation tabs" in app
+    assert 'st.title("P12-IOT LIVE ROUTING MONITOR")' in app
+    assert "st.tabs(" not in app
+    assert "run_simulation" not in app
 
 
 def test_gateway_keeps_https_contract_and_five_second_publishing():
@@ -172,3 +174,15 @@ def test_channel_sync_recovery_protocol_contract():
     assert "synchronized_nodes=3" in gateway
     assert "meshChannel=WiFi.channel()" in gateway
     assert "esp_wifi_set_channel" not in gateway
+
+
+def test_python_routing_ownership_expires_to_firmware_and_gateway_uses_controller_lease():
+    source = (ESP / "ESP32_01.ino").read_text()
+    gateway = (ESP / "ESP32_04.ino").read_text()
+    app = (ROOT / "app.py").read_text()
+    assert "if (pythonOwnsRoute)" in source
+    assert "reason=lease_expired fallback=embedded_decision_tree" in source
+    assert "if (!pythonOwnsRoute)" in source
+    assert 'jsonField(stateBody,"controllerAvailable")' in gateway
+    assert 'enabledText=="true"&&controllerText=="true"' in gateway
+    assert "/heartbeat" in app and '"controllerAvailable"' in app

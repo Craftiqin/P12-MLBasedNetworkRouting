@@ -1,5 +1,6 @@
 """Strict parsers and freshness metrics for the P12 read-only dashboard."""
 from datetime import datetime, timezone
+import math
 from typing import Any
 
 
@@ -81,6 +82,18 @@ def format_metric(value: Any, suffix: str = "", digits: int = 2) -> str:
     except TypeError:
         return "N/A"
     return f"{value:.{digits}f}{suffix}"
+
+
+def timestamped_values(records: list[dict[str, Any]], value_key: str,
+                      timestamp_key: str = "receivedAt") -> list[tuple[datetime, float, Any]]:
+    """Prepare only recorded finite values; missing samples remain gaps."""
+    points = []
+    for row in records:
+        timestamp = parse_timestamp(row.get(timestamp_key))
+        value = row.get(value_key)
+        if timestamp and isinstance(value, (int, float)) and not isinstance(value, bool) and math.isfinite(value):
+            points.append((timestamp, float(value), row.get("sequence")))
+    return sorted(points, key=lambda point: point[0])
 
 
 def delivery_intervals(events: list[dict[str, Any]]) -> list[dict[str, Any]]:

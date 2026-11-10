@@ -12,6 +12,8 @@ from typing import Any
 
 from sklearn.tree import DecisionTreeClassifier
 
+from dashboard.p12_data import parse_timestamp
+
 ROOT = Path(__file__).resolve().parents[1]
 ROUTE_DATA = ROOT / "simulation/inet/ml-routing/ml/data/route_scenarios.csv"
 ROUTE_EXPORT = ROOT / "simulation/inet/ml-routing/ml/artifacts/route_tree-runtime-v2.json"
@@ -140,6 +142,46 @@ def advance_hysteresis(
         return signature, 1, previous_evidence or evidence
     count = previous_count + 1 if signature == previous_signature else 1
     return signature, count, evidence
+
+
+def compare_route_performance(
+    events: list[dict[str, Any]], applied_at: datetime | None,
+    previous_hop: int | None, requested_hop: int | None, min_intervals: int = 2,
+) -> dict[str, Any]:
+    """Compare gateway-confirmed sent-counter PDR windows before/after route apply."""
+    if applied_at is None or previous_hop not in (2, 3) or requested_hop not in (2, 3):
+        return {"status": "INSUFFICIENT_EVIDENCE", "reason": "missing_command_or_route_timestamps"}
+    ordered = sorted(events, key=lambda row: parse_timestamp(row.get("receivedAt"))
+                     or datetime.min.replace(tzinfo=timezone.utc))
+    before: list[float] = []
+    after: list[float] = []
+    previous = None
+    for row in ordered:
+        sent, uptime = row.get("sourcePacketsSent"), row.get("sourceUptimeMs")
+        if (not isinstance(sent, int) or isinstance(sent, bool)
+                or not isinstance(uptime, int) or isinstance(uptime, bool)):
+            previous = None
+            continue
+        if previous is not None:
+            prev_sent, prev_uptime, prev_hop = previous
+            at = parse_timestamp(row.get("receivedAt"))
+            if (sent > prev_sent and uptime >= prev_uptime and prev_hop == row.get("selectedNextHopId")
+                    and row.get("selectedNextHopId") in (previous_hop, requested_hop) and at):
+                pdr = 1.0 / (sent - prev_sent)
+                (before if at < applied_at and row.get("selectedNextHopId") == previous_hop else after).append(pdr)
+        previous = (sent, uptime, row.get("selectedNextHopId"))
+    before = before[-min_intervals:]
+    after = after[-min_intervals:]
+    if len(before) < min_intervals or len(after) < min_intervals:
+        return {"status": "INSUFFICIENT_EVIDENCE", "beforeIntervals": len(before),
+                "afterIntervals": len(after)}
+    before_mean = sum(before) / len(before)
+    after_mean = sum(after) / len(after)
+    return {"status": "IMPROVED" if after_mean > before_mean else "NOT_IMPROVED",
+            "beforePdr": before_mean, "afterPdr": after_mean,
+            "difference": after_mean - before_mean,
+            "beforeIntervals": len(before), "afterIntervals": len(after),
+            "limitation": "Observed gateway-confirmed delivery intervals; not statistical validation."}
 
 
 def evaluate_live_route(

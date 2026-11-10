@@ -1,6 +1,9 @@
 from datetime import datetime, timedelta, timezone
 
-from dashboard.autonomous import RoutePolicy, advance_hysteresis, evaluate_live_route, load_route_model
+from dashboard.autonomous import (
+    RoutePolicy, advance_hysteresis, compare_route_performance,
+    evaluate_live_route, load_route_model,
+)
 
 
 def test_python_route_model_matches_exported_tree():
@@ -103,3 +106,21 @@ def test_hysteresis_counts_distinct_eligible_events_once_and_resets():
     reset = advance_hysteresis(*second[:2], second[2], signature, (76, 51000), False)
     assert first[1] == 1 and repeated[1] == 1 and second[1] == 2
     assert reset[0] is None and reset[1] == 0
+
+
+def test_command_feedback_compares_route_matched_gateway_intervals():
+    start = datetime.now(timezone.utc)
+    rows = []
+    for idx, (hop, sent) in enumerate(((3, 10), (3, 20), (3, 30), (2, 40), (2, 42), (2, 44))):
+        at = start + timedelta(seconds=idx * 5)
+        rows.append({"receivedAt": at.isoformat(), "selectedNextHopId": hop,
+                     "sourcePacketsSent": sent, "sourceUptimeMs": sent * 1000})
+    result = compare_route_performance(rows, start + timedelta(seconds=15), 3, 2)
+    assert result["status"] == "IMPROVED"
+    assert result["beforePdr"] == .1 and result["afterPdr"] == .5
+
+
+def test_command_feedback_stays_insufficient_without_post_change_windows():
+    now = datetime.now(timezone.utc)
+    result = compare_route_performance([], now, 3, 2)
+    assert result["status"] == "INSUFFICIENT_EVIDENCE"

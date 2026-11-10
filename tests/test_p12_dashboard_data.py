@@ -5,7 +5,7 @@ import pytest
 from dashboard.p12_data import (
     delivery_intervals, format_metric, hardware_records, merge_incremental_records,
     parse_routing_response, parse_sensor_response,
-    record_is_fresh,
+    record_is_fresh, timestamped_values,
 )
 
 
@@ -74,3 +74,15 @@ def test_incremental_refresh_deduplicates_and_caps_by_received_time():
     merged = merge_incremental_records(previous, incoming, 2)
     assert [row["id"] for row in merged] == [3, 2]
     assert merged[1]["temperatureC"] == 23
+
+
+def test_chart_series_keeps_timestamped_measurements_and_omits_missing_values():
+    rows = [
+        {"receivedAt": "2026-11-10T00:00:02Z", "temperatureC": 22.5, "sequence": 2},
+        {"receivedAt": "2026-11-10T00:00:01Z", "temperatureC": None, "sequence": 1},
+        {"receivedAt": "bad", "temperatureC": 99, "sequence": 3},
+        {"receivedAt": "2026-11-10T00:00:03Z", "temperatureC": float("nan"), "sequence": 4},
+    ]
+    points = timestamped_values(rows, "temperatureC")
+    assert len(points) == 1
+    assert points[0][1:] == (22.5, 2)
